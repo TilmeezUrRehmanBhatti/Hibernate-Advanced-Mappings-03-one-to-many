@@ -1,123 +1,202 @@
-#  @OneToOne - Bi-Directional Overview
-
-_New USer Case_
-+ If we load an InstructorDetail
-    + Then we'd like to get the association Instructor
-+ Can't do this with current uni-directional relationship
-
-<img src="https://user-images.githubusercontent.com/80107049/188320969-de93adc7-77db-47a0-a2b6-f25df5f713a0.png" width = 300 />
-
-_Bi-Directional_
-+ Bi-Directional relationship is the solution
-+ We can start with InstructorDetail and makt it back to the Instructor
-
-<img src="https://user-images.githubusercontent.com/80107049/188321013-78c99c67-4362-44c1-9400-16c71ed8636d.png" width = 300 />
-
-+ To use Bi-Directional, we can keep the existing database schema
-  + No change required to database 
-
-+ Simply update the Java code
 
 
-**Development Process: One-to-One (Bi-Directional**
-1. Make updates to InstructorDetail class.
-    1. Add new field to refer Instructor
-    2.  Add getter / setter methods for instructor
-    3.  Add @OneToOne annotation
+# One-to-Many Mapping
 
-2. Create Main App
++ An instructor can have many courses
+  + Bi-directional
 
-_Step 1.1:Add new field to reference Instructor_
-```JAVA
+
+<img src="https://user-images.githubusercontent.com/80107049/188426449-ef6f817f-62d5-4537-af54-3c37ceef1ae6.png" width = 600 />
+
++ Many courses can have on instructor
+  + Inverse / opposite of One-to-Many
+
+
+**Real-World Project Requirement**
++ If we delete an instructor, DO NOT delete the courses 
++ If we delete a course, DO NOT delete the instructor
++ Do not apply cascading deletes!
+
+**Development Process:One-to-Many**
+1. Prep Work - Define database tables
+2. Create Course class
+3. Update Instructor class
+4. Create Main App
+
+_Step 1:Define database tables_
+
+**table:course**
+
+```POSTGRESQL
+Create TABLE course (
+  id BIGSERIAL NOT NULL,
+  title VARCHAR(128) DEFAULT NULL,
+  instructor_id BIGINT DEFAULT NULL,
+  PRIMARY KEY(id),
+  UNIQUE KEY TITLE_UNIQUE(title),
+  ...
+);
+```
++ `UNIQUE KEY` is for Prevent duplicate course titles
+
+
+_table:course - foreign key_
+```POSTGRESQL
+CREATE TABLE course(
+  ...
+  CONSTRAINT FK_INSTRUCTOR
+        FOREIGN KEY (instructor_id)
+            REFERENCES instructor(id),
+  ...
+)
+```
+
+<img src="inkdrop://file:Krx8hLJkn" width = 600 />
+
+
+_Step 2:Create Course class - @ManyToOne_
+
+```JAVA 
 @Entity
-@Table(name="instructor_detail")
-public clas instructorDetail {
+@Table(name="course")
+public class Course {
   
- ...
-  private Instrucotr instructor;
+  @Id
+  @GeneratedValue(strategy=GenerationType.IDENTITY)
+  @Column(name="id")
+  private int id;
+  
+  @Column(name="title")
+  private String title;
+  
+  @ManyToOne
+  @JoinColumn(name="instructor_id")
+  private Instructor instructor;
+ 
+  ...
+    // constructor, getters / setters
+  
+}
+```
+
+_STEP 3:Update Instructor - reference courses_
+
+```JAVA 
+@Entity
+@Table(name="instructor")
+public class Instructor {
+  
+  ...
+  
+  private List<Course> courses;
+  
+  public List<Course> getCourses() {
+    return courses;
+  }
+  
+  public void setCourses(List<Course> courses) {
+    this.courses = courses;
+  }
+}
+```
+
+**Add @IneToMany annotation**
+```JAVA 
+@Entity
+@Table(name="instructor")
+public class Instructor {
+  ...
+  @OneToMany(mappedBy="instructor")
+  private List<Course> courses;
+  
+    public List<Course> getCourses() {
+    return courses;
+  }
+  
+  ...
+    
+}
+```
+
++ `@OneToMany(mappedBy="instructor")` Refers to "instructor" property in "Course" class.
+
++ **mappedBy** tells Hibernate
+  + look at the instructor property in the Course class
+  + Use information from the Course class `@JoinColumn`
+  + To help find associated course for instructor
+
+**Add support for Cascading**
+
+```JAVA 
+@Entity
+@Table(name="instructor")
+public class Instructor {
+  ...
+    
+  @OneToMany(mappedBy="instructor",
+             cascade={CascadeType.PRESIST, CascadeType.MERGE,
+                      CascadeType.DETACH, CascadeType.REFRESH})
+  private List<Course> course;
   
  ... 
 }
 ```
++ Do not apply cascading delete
 
-_Step 1.2:Add getter/setter methods Instructor_
-```JAVA
+Same in class course
+
+```JAVA 
 @Entity
-@Table(name="instructor_detail")
-public clas instructorDetail {
-  
- ...
-  private Instrucotr instructor;
-  
-  public instructor getInstructor(){
-    return instructor;
-  }
-  
-  public void setInstructor(Instructor instructor) {
-    this.instructor = instructor;
-  }
+@Table(name="course")
+public class Course {
   ...
+    
+  @OneToMany(cascade={CascadeType.PRESIST, CascadeType.MERGE,
+                      CascadeType.DETACH, CascadeType.REFRESH})
+  @JoinColumn(name="instructor_id")
+  private Instructor instructor;
+  
+ ... 
+ // constructor, getters / setters
 }
 ```
++ Do not apply cascading delete
 
-_Step 1.3:Add @OneToOne annotation_
+**Add convenience method for bi-directional**
 ```JAVA
 @Entity
-@Table(name="instructor_detail")
-public clas instructorDetail {
+@Table(name="instructor")
+public class Instructor {
   
- ...
-  @OneToOne(mappedBy="instructorDetail")
-  private Instrucotr instructor;
+  // add convienience methods for the bi-directional relationship
   
-  public instructor getInstructor(){
-    return instructor;
+  public void add(Course tempCourse){
+    
+    if(courses == null) {
+      courses = new ArrayList<>();
+    }
+    
+    courses.add(tempCourse);
+    
+    tempCourse.setInstructor(this);
   }
-  
-  public void setInstructor(Instructor instructor) {
-    this.instructor = instructor;
-  }
-  ...
+ ... 
 }
 ```
-+ mappedBy in `@OneToOne(mappedBy="instructorDetail")` Refers to "instructorDetail" property in "instructor" class
-+ **mappedBy** tells Hibernate
-    + Look at the instructorDetail property in th Instructor class
-    + Use information from Instructor class @JoinColumn
-    + To help find associated instructor
++ `tempCourse.setInstructor(this);` Bi-directional link 
 
-_Add support for Cascading_
-```JAVA
-@Entity
-@Table(name="instructor_detail", cascade=CascadeType.ALL)
-public class InstructorDetail {
-    @OneToOne(mappedBy="instructorDetail")
-  private Instrucotr instructor;
-  
-  public instructor getInstructor(){
-    return instructor;
-  }
-  
-  public void setInstructor(Instructor instructor) {
-    this.instructor = instructor;
-  }
-  ...
-}
-```
-+ `cascade=CascadeType.ALL` Cascade all operations to the associated Instructor
-
-_Step 2:Create Main App_
+_Step 4:Create Main App_
 ```JAVA
 public static void main(String[] args) {
-  ...
-  // get the instructor details object
+  
+  // get the instructor object
   int theId = 1;
-  InstructorDetail tempInstructorDetail = session.get(InstructorDetail.class, theId);
+  Instructor thempInstructor = session.get(Instructor.class, theId);
   
-  // print detail
-  System.out.println("tempInstructorDetail: " + tempInstructorDetail);
+  // print instructor
+  System.ou.println("tempInstructor: " + tempInstructor);
   
-  // print the associated instructor
-  System.out.println("the associated instructor: " + tempInstructorDetail.getInstructor());
+  // print the associated courses
+  System.out.println("courses: " + tempInstructor.getCourses());
   
 ```
